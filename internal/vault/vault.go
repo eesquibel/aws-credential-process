@@ -13,10 +13,14 @@ type ConfigOptions struct {
 	ConfigFileBackup string
 }
 
+// Credential is the JSON document the AWS CLI expects from a credential
+// process. SessionToken and Expiration are only set for STS credentials.
 type Credential struct {
 	Version 		int
 	AccessKeyId     string
 	SecretAccessKey string
+	SessionToken    string `json:",omitempty"`
+	Expiration      string `json:",omitempty"`
 }
 
 // Build the config options based on the given options.
@@ -54,9 +58,8 @@ func FetchCredential(uid string) (*Credential, error) {
 
 	// Get config file path to be used for the KSM
 	config, err := getConfig(buildConfigOptions(homeDir))
-	if err != nil || config == "" {
-		fmt.Println(err)
-		os.Exit(1)
+	if err != nil {
+		return nil, err
 	}
 
 	sm := ksm.NewSecretsManager(

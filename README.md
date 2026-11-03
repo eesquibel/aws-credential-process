@@ -18,7 +18,7 @@ Usage requires:
 
 Development requires the above plus:
 
-- Go > v1.21
+- Go 1.24 or later
 
 ## Setup
 
@@ -61,6 +61,31 @@ aws s3 ls
 ```
 
 If the command completes without error, congratulations, you are now fully set up.
+
+### Temporary credentials (STS)
+
+Add `--sts` to exchange the access key from your Vault for temporary credentials from the AWS Security Token Service. The AWS CLI then receives a session token with an expiry instead of your long-lived key.
+
+```ini
+credential_process = /path/to/keeper-aws-credential-process --uid <Record UID> --sts --duration 1h --policy /path/to/policy.json
+```
+
+| Flag | Description |
+| --- | --- |
+| `--sts` | Request temporary credentials from STS. Required for the flags below. |
+| `--duration` | How long the credentials last, as a Go duration such as `90m` or `8h`. Must be whole seconds, between `15m` and `36h` (`12h` with `--role-arn`, and no more than the role's maximum session duration). Defaults to the STS default: 12 hours, or 1 hour with `--role-arn`. |
+| `--policy` | Path to a JSON IAM policy document that limits what the session can do. The session gets only the permissions allowed by both this policy and the user's or role's own policies. |
+| `--role-arn` | Assume this IAM role instead of creating a session for the IAM user. |
+
+The STS call depends on the flags given:
+
+| Flags | STS call | Notes |
+| --- | --- | --- |
+| `--sts` | `GetSessionToken` | Same permissions as the IAM user. The session can't call the IAM API unless MFA is included, and of the STS API it can call only `AssumeRole` and `GetCallerIdentity`. |
+| `--sts --policy` | `GetFederationToken` | Permissions are limited by the policy. The session can't call the IAM API, and of the STS API it can call only `GetCallerIdentity`. |
+| `--sts --role-arn` (with or without `--policy`) | `AssumeRole` | The role's permissions, limited by the policy if one is given. The role's trust policy must allow the IAM user to assume it. |
+
+The IAM user whose key is in the Vault needs permission for the matching call (`sts:GetSessionToken`, `sts:GetFederationToken` or `sts:AssumeRole`). Requests go to the STS endpoint in `AWS_REGION`, then `AWS_DEFAULT_REGION`, then `us-east-1`. Sessions appear in CloudTrail as `keeper-aws-credential-process`.
 
 ## Contributing
 
